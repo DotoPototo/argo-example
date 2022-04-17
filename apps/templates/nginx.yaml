@@ -1,9 +1,10 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
   name: nginx-deploy
   labels:
     app: nginx-app
+  namespace: default
 spec:
   replicas: 1
   selector:
