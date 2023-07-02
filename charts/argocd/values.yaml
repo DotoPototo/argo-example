@@ -2,10 +2,71 @@ argo-cd:
   dex:
     enabled: false
   server:
-    extraArgs:
-      - --insecure
     config:
       repositories: |
         - type: helm
           name: argo-cd
           url: https://argoproj.github.io/argo-helm
+        - type: git
+          name: root
+          url: https://github.com/mikecbone/argo-example.git
+        - type: git
+          name: mongo-db
+          url: https://github.com/mikecbone/fake-mongodb-repo.git
+      # Accounts for ArgoCD
+      accounts.mikecbone: login
+    ingress:
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+        nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+        nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+        nginx.ingress.kubernetes.io/whitelist-source-range: "XX.XX.XX.XX" # YOUR IP
+        cert-manager.io/cluster-issuer: lets-encrypt
+      hosts:
+        - argocd.SOMEDOMAIN.com # ARGO DOMAIN
+      paths:
+        - /
+      tls:
+        - hosts:
+            - argocd.SOMEDOMAIN.com # ARGO DOMAIN
+          secretName: argocd-secret
+  configs:
+    credentialTemplates:
+      https-creds:
+        url: https://github.com/mikecbone/
+        username: argocd-token
+        password: some-auth-token
+    rbac:
+      # Role based access control policies and user-assigned groups
+      policy.csv: |
+        p, role:org-admin, applications, *, */*, allow
+        p, role:org-admin, certificates, get, *, allow
+        p, role:org-admin, gpgkeys, get, *, allow
+        p, role:org-admin, clusters, get, *, allow
+        p, role:org-admin, repositories, get, *, allow
+        p, role:org-admin, repositories, create, *, allow
+        p, role:org-admin, repositories, update, *, allow
+        p, role:org-admin, repositories, delete, *, allow
+        p, role:org-admin, projects, get, *, allow
+        p, role:org-admin, projects, create, *, allow
+        p, role:org-admin, projects, update, *, allow
+        p, role:org-admin, projects, delete, *, allow
+        p, role:org-admin, logs, get, *, allow
+        p, role:org-admin, exec, create, */*, allow
+        p, role:org-admin, accounts, get, *, allow
+        p, role:org-admin, accounts, update, *, allow
+
+        p, role:mongodb-viewer, applications, get, project-mongodb/*, allow
+        p, role:mongodb-viewer, logs, get, project-mongodb/*, allow
+
+        p, role:mongodb-manager, applications, update, project-mongodb/*, allow
+        p, role:mongodb-manager, applications, delete, project-mongodb/*, allow
+        p, role:mongodb-manager, applications, sync, project-mongodb/*, allow
+
+        g, mbone, role:mongodb-viewer
+        g, mbone, role:mongodb-manager
+        g, mbone, role:org-admin
+
+# Available config values can be found here:
+# https://github.com/argoproj/argo-helm/blob/main/charts/argo-cd/values.yaml

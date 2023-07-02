@@ -1,19 +1,22 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: argocd
+  name: mongodb
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
-  project: default
+    namespace: mongodb
+  project: project-mongodb
   source:
-    path: charts/argocd
-    repoURL: https://github.com/mikecbone/argo-example.git
+    path: kubernetes/
+    repoURL: https://github.com/mikecbone/fake-mongodb-repo.git
     targetRevision: HEAD
+    helm:
+      valueFiles:
+        - values.yaml
   syncPolicy:
     automated:
       prune: true
