@@ -2,19 +2,6 @@ argo-cd:
   dex:
     enabled: false
   server:
-    config:
-      repositories: |
-        - type: helm
-          name: argo-cd
-          url: https://argoproj.github.io/argo-helm
-        - type: git
-          name: root
-          url: https://github.com/mikecbone/argo-example.git
-        - type: git
-          name: mongo-db
-          url: https://github.com/mikecbone/fake-mongodb-repo.git
-      # Accounts for ArgoCD
-      accounts.mikecbone: login
     ingress:
       enabled: true
       annotations:
@@ -23,15 +10,28 @@ argo-cd:
         nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
         nginx.ingress.kubernetes.io/whitelist-source-range: "XX.XX.XX.XX" # YOUR IP
         cert-manager.io/cluster-issuer: lets-encrypt
-      hosts:
-        - argocd.SOMEDOMAIN.com # ARGO DOMAIN
-      paths:
-        - /
+      hostname: argocd.SOMEDOMAIN.com # ARGO DOMAIN
+      path: /
       tls:
         - hosts:
             - argocd.SOMEDOMAIN.com # ARGO DOMAIN
-          secretName: argocd-secret
+          secretName: argocd-server-tls
   configs:
+    cm:
+      accounts.mikecbone: login
+    repositories:
+      argo-helm:
+        type: helm
+        name: argo-cd
+        url: https://argoproj.github.io/argo-helm
+      argo-example:
+        type: git
+        name: root
+        url: https://github.com/mikecbone/argo-example.git
+      fake-mongo:
+        type: git
+        name: mongo-db
+        url: https://github.com/mikecbone/fake-mongodb-repo.git
     credentialTemplates:
       https-creds:
         url: https://github.com/mikecbone/

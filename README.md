@@ -116,9 +116,9 @@ rm -r repo_folder-name
 
 ## Adding Repo Connections
 
-Any connections Argo makes should be defined ArgoCDs values file `charts/values.yaml` under `server.config.repositories`
+Any connections Argo makes should be defined ArgoCDs values file `charts/values.yaml` under `argo-cd.configs.repositories`
 
-If an application Argo is managing has a private repository then an access token will also have to be defined under `configs.credentialTemplates.https-creds`
+If an application Argo is managing has a private repository then an access token will also have to be defined under` argo-cd.configs.credentialTemplates.https-creds`
 
 ## Updating ArgoCD
 
@@ -126,7 +126,7 @@ To update Argo, update the version number in Argos Chart file `charts/Chart.yaml
 
 ## User Accounts
 
-To create an ArgoCD user account, add the new user to the ArgoCD values file `charts/values.yaml` under `argo-cd.server.config` with the `login` parameter;
+To create an ArgoCD user account, add the new user to the ArgoCD values file `charts/values.yaml` under `argo-cd.configs.cm` with the `login` parameter;
 
 `accounts.ACCOUNT_NAME: login`
 
