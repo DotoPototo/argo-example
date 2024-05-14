@@ -14,15 +14,21 @@ Self-managed ArgoCD example to get ArgoCD to monitor and update itself and other
 
 ### Install App Required Packages
 
-First, if helm isn't installed then install it following the latest [online instructions](https://helm.sh/)
+If helm isn't installed then get it following the latest [instructions](https://helm.sh/)
 
 If the kubernetes instance doesn't have an ingress controller then install the [NGINX Ingress Controller](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-helm/) using helm.
 
-Finally install [sealed secrets](https://github.com/bitnami-labs/sealed-secrets#installation) via helm, following the suggested overrides for namespace and controller name.
+If you're using Microk8s then this comes with both helm and an ingress controller (though they may need to be enabled with `microk8s enable ingress helm3`)
+
+### Install Optional Packages
+
+If you plan on deploying applications with secrets, and you want to commit these secrets to version control like GitHub, then it's advised to take advantage of [sealed secrets](https://github.com/bitnami-labs/sealed-secrets). This will allow you to encrypt your secrets before commiting them to version control, letting you use the secrets as part of your infrastructure as code for your applications.
+
+To start, first install [sealed secrets](https://github.com/bitnami-labs/sealed-secrets#installation) via helm, following the suggested overrides for namespace and controller name.
 
 Additionally, install the accompanying [CLI tool Kubeseal](https://github.com/bitnami-labs/sealed-secrets#kubeseal) to encrypt secrets on the cluster. If you plan to pull the public key from the cluster and encrypt secrets locally then you should also install `kubeseal` on your local machine.
 
-Some kubernetes instances supply their own kubeconfig (i.e. Microk8s) so you may have to update/create the host kubeconfig with a copy so `kubeseal` can access it for sealed secrets. An example of this is [here](https://microk8s.io/docs/working-with-kubectl) for Microk8s.
+Some kubernetes instances supply their own kubeconfig (i.e. Microk8s) so you may have to update/create the host kubeconfig with a copy of your kubernetes used config, so `kubeseal` can access it for sealed secrets. An example of this is [here](https://microk8s.io/docs/working-with-kubectl) for Microk8s.
 
 To pull the public key to encrypt secrets locally, output the secret and then reference it when running future `kubeseal` commands
 
@@ -36,9 +42,95 @@ kubeseal --cert mycert.pem
 
 Public keys renew every 30 days on the cluster. **You should routinely fetch the latest key**. For more details and explentation see [here](https://github.com/bitnami-labs/sealed-secrets#common-misconceptions-about-key-renewal)
 
+#### Encrypting Secrets
+
+To create a sealed secret you will need to encrypt it using the key stored inside the k8s cluster.
+
+On the server, encrypt a secret with the following (adding `--cert mycert.pem` if using a locally stored cert instead)
+
+```bash
+echo -n MY_APP_SECRET | kubeseal --raw --namespace MY_APP_NAMESPACE --scope namespace-wide
+```
+
+_Note: The secret is encrypted for applications in the given namespace only_
+
+#### Using Sealed Secrets
+
+For this example, we will deploy secrets as environment variables for a pod i.e. running a web app.
+
+Place your secrets in the applications `values` file, under `sealedSecrets`
+
+```yaml
+# values.yaml
+...
+sealedSecrets:
+  mySecretOne: ABC123...
+  mySecretTwo: XYZ789...
+...
+```
+
+Then create an additional application yaml to be deployed, of kind `SealedSecret`
+
+```yaml
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: my-app-sealed-secrets
+  namespace: {{.Values.namespace}}
+  annotations:
+    sealedsecrets.bitnami.com/namespace-wide: "true"
+spec:
+  encryptedData:
+    {{- range $key, $val := .Values.sealedSecrets }}
+    {{ $key }}: {{ $val | quote }}
+    {{- end }}
+```
+
+#### Batch Sealing
+
+To seal a text file of secrets all in one go, save the following shell script with executable permissions:
+
+```bash
+#!/bin/bash
+
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 FILENAME NAMESPACE" >&2
+  exit 1
+fi
+if ! [ -e "$1" ]; then
+  echo "$1 not found" >&2
+  exit 1
+fi
+if ! [ -f "$1" ]; then
+  echo "$1 not a file" >&2
+  exit 1
+fi
+
+while read arg; do
+  secretname=$(echo "$arg" | cut -d ":" -f 1)
+  secretvalue=$(echo "$arg" | cut -d "\"" -f 2)
+  sealedvalue=$(echo -n $secretvalue | kubeseal --raw --namespace $2 --scope "namespace-wide")
+  echo $secretname: $sealedvalue
+done <$1
+```
+
+Then save a text file containing all the secrets that need sealing, i.e. like a `.env` file:
+
+```
+MYSECRET = somesecretvalue
+ANOTHER_SECRET = supersecretvalue
+FINALSECRET = dontshareme
+```
+
+Run the script, passing in the text file and the namespace of the application that the secrets are for
+
+```bash
+./sealer.sh secrets.txt my-app-namespace
+```
+
 ### Install ArgoCD and Cert-Manager
 
-Clone the repo onto the server (can set up an access token in GitLab and remove it afterwards)
+Clone this repo onto the server (can set up an access token and remove it afterwards)
 
 ```bash
 git clone ...
@@ -116,7 +208,7 @@ rm -r repo_folder-name
 
 ## Adding Repo Connections
 
-Any connections Argo makes should be defined ArgoCDs values file `charts/values.yaml` under `argo-cd.configs.repositories`
+Any connections Argo makes should be defined in ArgoCDs values file `charts/values.yaml` under `argo-cd.configs.repositories`
 
 If an application Argo is managing has a private repository then an access token will also have to be defined under` argo-cd.configs.credentialTemplates.https-creds`
 
